@@ -3,6 +3,7 @@ import numpy as np
 import os
 import tensorflow as tf
 
+from data import format_data
 from keras_transformer.position import TransformerCoordinateEmbedding
 from keras_transformer.transformer import TransformerBlock
 from sklearn.decomposition import PCA
@@ -20,27 +21,6 @@ INPUT_DIM = 65
 SEQ_LENGTH = 168
 MODEL_PATH = os.path.join(SAVED_DIR, 'mark16-032.h5')
 ADMIT_EMBEDDING, DISCHARGE_EMBEDDING = np.load(os.path.join(SAVED_DIR, 'special_sequence_items.npy'))
-
-
-
-### Helper Methods
-
-def check_data(data):
-	for array in data:
-		assert len(array.shape) == 2, 'Expected each array to have dimension 2, got {}'.format(len(array.shape))
-		assert array.shape[-1] == INPUT_DIM, 'Expected input dimension to be {}, got {}'.format(INPUT_DIM, array.shape[-1])
-
-
-def pad(data):
-	check_data(data)
-
-	X = np.zeros((len(data), SEQ_LENGTH, INPUT_DIM))
-	X[:, 0] = ADMIT_EMBEDDING
-
-	for i, array in enumerate(data):
-		X[i][1 : len(array[:SEQ_LENGTH - 1]) + 1] = array[:SEQ_LENGTH - 1]
-
-	return X
 
 
 
@@ -64,6 +44,7 @@ class PatientFinder:
 
 
 	def fit_transform(self, data, patient_ids=None):
+		data = format_data(data)
 		check_data(data)
 
 		X = pad(data)
@@ -71,15 +52,20 @@ class PatientFinder:
 		X = X.reshape(-1, X.shape[-1])
 
 		if patient_ids is None:
-			self.patient_ids = {}
+			patient_ids = np.arange(len(data))
+			
+		self.patient_ids = {i: patient_ids[patientint(i / SEQ_LENGTH)] for i in range(len(X))}
+		self.patient_offsets = {i: patient_ids[patientint(i % SEQ_LENGTH)] for i in range(len(X))}
 
 		self._fit_X = X
 		self._fit_pca_X = self.pca.fit_transform(X)
 		self.knn.fit(self._fit_pca_X)
 
 
-	def transform(self, data):
+	def transform(self, data)
+		data = format_data(data)
 		check_data(data)
+		assert self.pca is not None and self.knn is not None, 'Must call function "fit_transform" before using "transform"'
 
 		ends = np.clip([len(array) for array in data], 0, SEQ_LENGTH - 1)
 		X = pad(data)
@@ -90,6 +76,7 @@ class PatientFinder:
 
 
 	def find_similar(self, data, num_similar=5, return_distance=False):
+		data = format_data(data)
 		check_data(data)
 
 		X = self.transform(data)
